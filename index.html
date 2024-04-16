@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>图片转字符</title>
+  </head>
+
+  <body>
+    <input type="file" name="file" id="upButton" onchange="getImg()" />
+
+    请选择字符画粗糙度：
+    <select id="charSize">
+      <option value="1">1</option>
+      <option value="2">2</option>
+      <option value="3">3</option>
+    </select>
+
+    <button onclick="start()">开始执行</button>
+
+    <!-- 辅助canvas，设为隐藏 -->
+    <div id="leftDiv">
+      <canvas
+        id="canvas"
+        width="4000"
+        height="4000"
+        style="display: none"
+      ></canvas>
+    </div>
+
+    <!-- 生成位置 -->
+    <div style="display: flex; justify-content: center; align-items: center">
+      <div id="rightDiv"></div>
+    </div>
+  </body>
+  <script>
+    const img = new Image(); // 储存图片信息
+    const canvas = document.getElementById("canvas"); // canvas实例
+    const ctx = canvas.getContext("2d"); // 画笔
+    let charCanvas = ""; // 生成的字符画
+    let flag = false; // 图片加载完毕标识
+    console.log(window.innerWidth);
+    const CHAR_SIZE = 15; // 字符大小
+    const IMAGE_MAX_SIZE =
+      Math.min(window.innerWidth / CHAR_SIZE, window.innerHeight / CHAR_SIZE) *
+      0.8; // 像素点最大值
+
+    const getImg = (file) => {
+      flag = false;
+      const reader = new FileReader();
+      reader.readAsDataURL(document.getElementById("upButton").files[0]);
+      reader.onload = function () {
+        img.src = reader.result;
+        flag = true;
+      };
+    };
+
+    // 根据灰度转化字符，添加颜色
+    const toText = (gray, color) => {
+      // 使用对象数组存储灰度阈值和对应的符号
+      const mappings = [
+        { min: 0, symbol: "@" }, // 最黑
+        { min: 25, symbol: "#" },
+        { min: 50, symbol: "&" },
+        { min: 75, symbol: "$" },
+        { min: 100, symbol: "%" },
+        { min: 125, symbol: "*" },
+        { min: 150, symbol: "o" },
+        { min: 175, symbol: "!" },
+        { min: 200, symbol: ";" }, // 越来越浅
+        { min: 225, symbol: ":" },
+        { min: 250, symbol: "." }, // 最浅
+      ];
+
+      // 使用 find 方法查找第一个 gray 大于等于对应 min 的映射
+      const matchedMapping = mappings
+        .toReversed()
+        .find((mapping) => gray >= mapping.min);
+      const text = matchedMapping?.symbol || mappings[0].symbol;
+
+      return `<div style="color:${color}; width: ${CHAR_SIZE}px; height: ${CHAR_SIZE}px">${text}</div>`;
+    };
+
+    const start = () => {
+      if (!flag) {
+        alert("尚未加载图片");
+        return;
+      }
+      // 清空字符画
+      charCanvas = "";
+      if (img.width > IMAGE_MAX_SIZE || img.height > IMAGE_MAX_SIZE) {
+        // 先记录比率,如果宽，那么先缩放宽,再用比率算出长,反之同理，这里是保证不超过不超过设定规模
+        const rate = img.width / img.height;
+        if (rate > 1) {
+          img.width = IMAGE_MAX_SIZE;
+          img.height = IMAGE_MAX_SIZE / rate;
+        } else {
+          img.height = IMAGE_MAX_SIZE;
+          img.width = IMAGE_MAX_SIZE / rate;
+        }
+      }
+
+      // 将图片绘制在canvas上
+      console.log(img)
+      ctx.drawImage(img, 0, 0, img.width, img.height);
+
+      // 从canvas上获取像素信息
+      let imgData;
+      try {
+        imgData = ctx.getImageData(0, 0, img.width, img.height);
+        console.log(imgData)
+      } catch {
+        alert("图片加载失败，请重新选择图片");
+      }
+
+      // 读取颜色及规模
+      let scale = parseInt(document.getElementById("charSize").value || 1);
+
+      // 生成主体
+      for (let heightIndex = 0; heightIndex < img.height; heightIndex += scale) {
+        charCanvas += "<div style='display: flex'>";
+        for (let widthIndex = 0; widthIndex < img.width; widthIndex += scale) {
+          const curPoint = (heightIndex * img.width + widthIndex) * 4; // ×4是因为，1为r，2为g，3为b，4为a，四个是一组rgba值
+          const [r, g, b] = imgData.data.slice(curPoint, curPoint + 3);
+          const gray = r * 0.3 + g * 0.6 + b * 0.1; // 计算灰度值
+          const color = `rgb(${r},${g},${b})`; // 保存像素点rgb值
+          charCanvas += toText(gray);
+          
+          // 想用有颜色的就用下面这个
+          // charCanvas += toText(gray, color);
+        }
+        charCanvas += "</div>";
+      }
+
+      document.getElementById("rightDiv").innerHTML = charCanvas; // 将字符串填充到html
+    };
+  </script>
+</html>
